@@ -283,7 +283,6 @@ app.post("/login", async (req, res) => {
     // Admin bypass check
     const adminEmail = process.env.ADMINMAIL; // Replace with your admin email
     if (email === adminEmail) {
-      // Update user role to admin if the email matches the admin email
       user.role = 1;
       await user.save();
     }
