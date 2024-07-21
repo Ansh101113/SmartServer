@@ -9,6 +9,7 @@ import User from "./Schemas/User.Schema.js";
 import client from "./twilioConfig.js";
 import crypto from "crypto"; // Add this line
 import nodemailer from "nodemailer"; // Add this line
+import Review from "./Schemas/Review.schema.js";
 
 dotenv.config();
 
@@ -228,10 +229,10 @@ app.get("/products/:barcode", async (req, res) => {
 });
 
 app.post("/add-product", authenticateUser, async (req, res) => {
-  const { product_name, barcode, mfd, expiry_date, product_info } = req.body;
+  const { product_name, barcode, mfd, expiry_date, product_info ,notificationPeriod } = req.body;
   const userId = req.user.userId;
 
-  if (!product_name || !barcode || !mfd || !expiry_date || !product_info) {
+  if (!product_name || !barcode || !mfd || !expiry_date || !product_info || !notificationPeriod) {
     return res.status(400).send({ message: "All fields are required" });
   }
 
@@ -256,6 +257,7 @@ app.post("/add-product", authenticateUser, async (req, res) => {
     expiry_date: new Date(expiry_date),
     product_info,
     addedBy: userId,
+    notificationPeriod,
   });
 
   try {
@@ -371,6 +373,37 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// api route for contactus page
+app.post("/contactus", async (req, res) => {
+  const { name, email, message } = req.body;
+
+  try {
+    // Set up Nodemailer transporter
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL,
+        pass: process.env.PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL,
+      to: process.env.EMAIL,
+      subject: `Contact Us message from ${name}`,
+      text: `From: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: "Message sent successfully" });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server Error. Please try again after sometime.",
+      error: error.message,
+    });
+  }
+});
+
 // Route to handle forgot password
 app.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
@@ -428,7 +461,9 @@ app.post("/user/reset-password/:token", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: "Password reset token is invalid or has expired." });
+      return res
+        .status(400)
+        .json({ message: "Password reset token is invalid or has expired." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -447,8 +482,65 @@ app.post("/user/reset-password/:token", async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+app.put("/products/:id", async (req, res) => {
+  try {
+    const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+    if (!product) {
+      return res.status(404).send();
+    }
+    res.send(product);
+  } catch (error) {
+    res.status(400).send(error);
+  }
+});
+app.delete("/products/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Product.findByIdAndDelete(id);
+    res.status(200).json({ message: "Product deleted successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete product.", error });
+  }
+});
+// Review Backend
 
 
+// API to submit a review
+app.post("/reviews", async (req, res) => {
+  const { name, email, message } = req.body;
+
+  if (!name || !email || !message) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  const newReview = new Review({ name, email, message });
+
+  try {
+    await newReview.save();
+    res.status(201).json({
+      message: "Review submitted successfully!",
+      success: true,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error submitting review",
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// API to get all reviews
+app.get("/reviews", async (req, res) => {
+  try {
+    const reviews = await Review.find({});
+    res.status(200).json(reviews);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching reviews", error: error.message });
+  }
+});
 
 
 
